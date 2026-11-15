@@ -5,10 +5,13 @@
 """
 
 import json
+import random
 from functools import cache
 from pathlib import Path
+from uuid import uuid4
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+LEARNING_LOG_DIR = Path(__file__).resolve().parent.parent / "learning_log"
 MAX_RESULTS = 3
 
 
@@ -77,3 +80,39 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def make_quiz(lecture: int) -> str:
+    """指定した講義回の用語から確認問題を1問生成し、答えとともに返す。
+
+    「第2回の確認問題を出して」のように、その回の復習問題を求められたときに使う。
+    """
+    terms = [term for term in load_glossary() if term["lecture"] == lecture]
+    if not terms:
+        return json.dumps(
+            {
+                "question": f"第{lecture}回の用語集に用語がありません。",
+                "answer": "",
+            },
+            ensure_ascii=False,
+        )
+
+    term = random.choice(terms)
+    return json.dumps(
+        {
+            "question": f"{term['term']}の意味は？",
+            "answer": term["definition"],
+        },
+        ensure_ascii=False,
+    )
+
+
+def save_learning_log(content: str) -> str:
+    """学習内容を学習記録として保存し、保存先を返す。
+
+    ユーザーから学んだ内容や振り返りを学習記録として残すよう依頼されたときに使う。
+    """
+    LEARNING_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    path = LEARNING_LOG_DIR / f"{uuid4().hex}.txt"
+    path.write_text(content, encoding="utf-8")
+    return str(path)
