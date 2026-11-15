@@ -1,6 +1,7 @@
 """ツールのテスト（LLMもAPIキーも使わない）。"""
 
 import json
+from pathlib import Path
 
 from app import tools
 
@@ -37,6 +38,35 @@ def test_search_reports_not_found():
 def test_lecture_summary():
     assert "エージェント" in tools.get_lecture_summary(3)
     assert "まだありません" in tools.get_lecture_summary(99)
+
+
+def test_make_quiz_uses_a_term_from_the_requested_lecture():
+    terms = [term for term in tools.load_glossary() if term["lecture"] == 2]
+
+    quiz = json.loads(tools.make_quiz(2))
+
+    assert any(quiz["question"] == f"{term['term']}の意味は？" for term in terms)
+    answer_term = next(term for term in terms if quiz["question"] == f"{term['term']}の意味は？")
+    assert quiz["answer"] == answer_term["definition"]
+
+
+def test_make_quiz_handles_lecture_without_terms():
+    quiz = json.loads(tools.make_quiz(99))
+
+    assert set(quiz) == {"question", "answer"}
+    assert "第99回" in quiz["question"]
+    assert quiz["answer"] == ""
+
+
+def test_save_learning_log_writes_content_to_generated_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(tools, "LEARNING_LOG_DIR", tmp_path / "learning_log")
+
+    destination = tools.save_learning_log("今日学んだこと")
+
+    saved_file = tmp_path / "learning_log" / Path(destination).name
+    assert saved_file.parent == tmp_path / "learning_log"
+    assert saved_file.suffix == ".txt"
+    assert saved_file.read_text(encoding="utf-8") == "今日学んだこと"
 
 
 def test_default_question_of_lecture1_is_answerable_from_glossary():
